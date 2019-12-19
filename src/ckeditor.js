@@ -34,8 +34,10 @@ import Underline from '@ckeditor/ckeditor5-basic-styles/src/underline';
 import IndentBlock from '@ckeditor/ckeditor5-indent/src/indentblock';
 // import { LinkTarget } from './extended-link-plugin';
 import SimpleUploadAdapter from '@ckeditor/ckeditor5-upload/src/adapters/simpleuploadadapter';
+import Mention from "@ckeditor/ckeditor5-mention/src/mention";
 
-export default class InlineEditor extends InlineEditorBase {}
+export default class InlineEditor extends InlineEditorBase {
+}
 
 // Plugins to include in the build.
 InlineEditor.builtinPlugins = [
@@ -66,7 +68,9 @@ InlineEditor.builtinPlugins = [
 	Underline,
 	Indent,
 	IndentBlock,
-	SimpleUploadAdapter
+	SimpleUploadAdapter,
+	Mention,
+	MentionCustomization
 ];
 
 // Editor configuration.
@@ -107,6 +111,65 @@ InlineEditor.defaultConfig = {
 			'mergeTableCells'
 		]
 	},
+	mention: {
+		feeds: [
+			{
+				marker: '@',
+				feed: ['@Barney', '@Lily', '@Marshall', '@Robin', '@Ted'],
+				minimumCharacters: 1
+			}
+		]
+	},
 	// This value must be kept in sync with the language defined in webpack.config.js.
 	language: 'en'
 };
+
+function MentionCustomization(editor) {
+	// // The upcast converter will convert view <a class="mention" href="" data-user-id="">
+	// // elements to the model 'mention' text attribute.
+	editor.conversion.for('upcast').elementToAttribute({
+		view: {
+			name: 'span',
+			key: 'data-mention',
+			classes: 'mention',
+			attributes: {
+				// href: true,
+				'data-mention-item-id': true
+			}
+		},
+		model: {
+			key: 'mention',
+			value: viewItem => {
+				// The mention feature expects that the mention attribute value
+				// in the model is a plain object with a set of additional attributes.
+				// In order to create a proper object use the toMentionAttribute() helper method:
+				return editor.plugins.get('Mention').toMentionAttribute(viewItem, {
+					// Add any other properties that you need.
+					// link: viewItem.getAttribute('href'),
+					itemId: viewItem.getAttribute('data-mention-item-id'),
+					id: viewItem.getAttribute('data-mention-id')
+				});
+			}
+		},
+		converterPriority: 'high'
+	});
+
+	// Downcast the model 'mention' text attribute to a view <a> element.
+	editor.conversion.for('downcast').attributeToElement({
+		model: 'mention',
+		view: (modelAttributeValue, viewWriter) => {
+			// Do not convert empty attributes (lack of value means no mention).
+			if (!modelAttributeValue) {
+				return;
+			}
+
+			return viewWriter.createAttributeElement('span', {
+				class: 'mention',
+				'data-mention-id': modelAttributeValue.id,
+				'data-mention-item-id': modelAttributeValue.itemId,
+				// 'href': modelAttributeValue.link,
+			});
+		},
+		converterPriority: 'high'
+	});
+}
